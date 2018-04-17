@@ -1,0 +1,182 @@
+---
+title: "Weight Lifting Project"
+author: "Gagan G M"
+date: "9 April 2018"
+output: html_document
+---
+
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+##### Weight Lifting Exercises Dataset
+
+   
+|                                             |  
+|:--------:+:---------------------------------------------|  
+|  |     |   
+|  |     |  
+|  |     |   
+|  |     |  
+|  |     |   
+|  |     |  
+|  |     |  
+| | |  
+
+:  
+
+
+|                                                                           |  
+|:----------------------+:---------------------------------------------|  
+| ![On-body sensing schema](http://groupware.les.inf.puc-rio.br/static/WLE/on-body-sensing-schema.png) |Human Activity Recognition - HAR - has emerged as a key research area in the last years and is gaining increasing attention by the pervasive computing research community (see picture below, that illustrates the increasing number of publications in HAR with wearable accelerometers), especially for the development of context-aware systems. There are many potential applications for HAR, like: elderly monitoring, life log systems for monitoring energy expenditure and for supporting weight-loss programs, and digital assistants for weight lifting exercises.   .   This human activity recognition research has traditionally focused on discriminating between different activities, i.e. to predict "which" activity was performed at a specific point in time (like with the Daily Living Activities dataset above). The approach we propose for the Weight Lifting Exercises dataset is to investigate "how (well)" an activity was performed by the wearer. The "how (well)" investigation has only received little attention so far, even though it potentially provides useful information for a large variety of applications,such as sports training.  In this work (see the paper) we first define quality of execution and investigate three aspects that pertain to qualitative activity recognition: the problem of specifying correct execution, the automatic and robust detection of execution mistakes, and how to provide feedback on the quality of execution to the user. We tried out an on-body sensing approach (dataset here), but also an "ambient sensing approach" (by using Microsoft Kinect - dataset still unavailable)  Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).  Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. We made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg).  |   
+|  |  
+
+:  
+
+
+## Introduction  
+In this project goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The five ways are exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Only Class A corresponds to correct performance. The goal of this project is to predict the manner in which they did the exercise, i.e., Class A to E.  
+For more information refer to the website: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+
+## Setup  
+Firstly load the necessary R packages that will be needed for analysis. the packages are loaded using the following command. 
+```{r load-packages, message=FALSE}
+# load the packages
+library(caret)
+library(ggplot2)
+library(rpart)
+library(rpart.plot)
+#library(rattle)
+library(randomForest)
+library(repmis)
+library(corrplot)
+```
+
+
+## Accessing Data
+Accessing the dataset using the following command.
+```{r}
+# Importing the dataset using URL
+# TrainingDataURL<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+# TestingDataURL<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+# training <- read.table(TrainingDataURL, na.strings = c("NA", "NaN", "#DIV/0!", ""), header = TRUE)
+# testing <- read.table(TestingingDataURL, na.strings = c("NA",  "NaN", "#DIV/0!", ""), header = TRUE)
+
+# Importing the dataset from the local directory
+setwd("E:/R WD/PML")
+rawtraining <- read.csv("pml-training.csv", na.strings = c("NA", "NaN", "#DIV/0!", ""), header = TRUE)
+rawtesting <- read.csv("pml-testing.csv", na.strings = c("NA", "NaN", "#DIV/0!", ""), header = TRUE)
+
+```
+
+Checking the structure of dataset is loaded  
+```{r}
+str(rawtraining, list.len = 6)
+str(rawtesting, list.len = 6)
+```
+
+##### Discussion  
+The Training dataset contains 19622 observations and 160 variables while the testing dataset contains 20 observations and 160 variables i.e. both training and testing dataset containg same no. of variables also the dataset is divided into 99.898% training and 0.102% testing.  
+
+## Cleaning the data
+#### Removing Predictors having too much missing data
+Only retaining the columns(predictors) in the dataset that are complete.
+```{r}
+is_NA <- colSums(is.na(rawtraining)) >0
+str(rawtraining[,is_NA], list.len = 6)
+```
+#####Discussion 
+With this we now know which all variables have no data.   
+
+#### Finding predictors that are factors  
+We see the factors predictor that are not classe are not inherently factors, but numbers that the software are not able to cast, since they are incomplete, empty strings, or not well formatted. these variables would not be useful for training the model soalso eliminate these from the selected features.  
+```{r}
+is_factor_predictor <- unlist(sapply(rawtraining[1,], is.factor))
+is_factor_predictor[length(is_factor_predictor)]<-FALSE
+str(rawtraining[,is_factor_predictor], list.len = 6) 
+```
+#####Discussion 
+With this we now which all are predictors that are factor in nature or empty strings.
+  
+
+#### Removing variables with indices and time stamp  
+The variables such as timestamps and the indices of data records are not really meaningful to train model, so we will be removing such features.
+```{r}
+is_not_relevant <- rep(FALSE, ncol(rawtraining))
+is_not_relevant [1:7] <- TRUE
+str(rawtraining[,is_not_relevant], list.len = 6)
+```
+#####Discussion 
+variables that are not relevant are found with this.  
+
+###Extract the training set 
+```{r}
+Train_data <- rawtraining[, !(is_not_relevant|is_factor_predictor|is_NA)]
+# get list of predictors by removing "classe"
+predictors_name <- names(Train_data)
+predictors_idx <- grep("^classe", predictors_name, invert= TRUE)
+predictors_name <- predictors_name[predictors_idx]
+
+```
+
+    
+```{r}
+# Selecting the numerical data
+ND <- Train_data[ , sapply(Train_data, is.numeric)]
+# applying the numerical data to get correlation
+CorMatrix <- cor(ND, use= "complete.obs")
+corrplot(CorMatrix, method="shade", shade.col=NA, cl.pos="n", tl.col="black", tl.srt=30, addCoef.col="black")
+
+
+```
+
+## Data Splitting
+To get out of sample errors, we split the cleaned training set into training set (70%) for prediction and a cross validation set (30%) to compute the out of sample errors.   
+```{r}
+set.seed(12345)
+inTrain <- createDataPartition(Train_data$classe, p=0.7, list = FALSE)
+TrainSet <- Train_data[inTrain, ]
+CV_Set <- Train_data[-inTrain, ]
+
+```
+##### Discussion  
+With this the previous training set got divided to the New TrainSet(70%) and CV_Set (30%).
+
+
+## Fitting the Model  
+we have a classification problem, in which all predictors are continous predictors. Hence we will be using random forest
+
+### Random Forests  
+Fitting the model using the code below
+```{r}
+fit_rf <- randomForest(classe~., data = TrainSet)  
+print(fit_rf)
+```
+
+####Cross-Validation  
+To assess out of the sample error we apply the model on CV_set using the code below.
+```{r}
+#predicting outcome using Validation set
+CV_result <- predict(fit_rf, newdata = CV_Set[, predictors_name])
+# Show prediction result
+CV_conf <- confusionMatrix(CV_Set[,"classe"], CV_result)
+CV_conf
+#(accuracy_rf <- CV_conf$overall[1])
+```
+##### Discussion  
+From the confusion matrix, we can see the model fit is very accurate.  
+
+
+## Prediction  
+We will be applying the above model to classify the activities on the testset using the code below.  
+```{r}
+(Pred_test <- predict(fit_rf, rawtesting[,predictors_name]))
+```
+##### Discussion  
+From the result we can say that 7 lie in A category, 8 lie in B category, 1 lie in C category, 1 lie in D category and 3 lie in E category in the test set.  
+
+## Conclusion   
+The model we came up with which identify mistakes, depends a lot on how the data is collected and processed. Also the analysis shows that using the machine learning algorithm is a good approach to identify mistakes in weight lifting with very high accuracy of 99.3%.  
+
